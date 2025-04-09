@@ -13,29 +13,17 @@ const fs = require('fs');
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
-    
     await page.goto(url, { waitUntil: 'networkidle2' });
-    
-    // Scoatem tot textul (pe paragrafe) și link-urile tuturor imaginilor
     const result = await page.evaluate(() => {
       const textNodes = Array.from(document.querySelectorAll('p'))
         .map(el => el.innerText.trim())
         .filter(t => t.length > 0);
-
       const imageLinks = Array.from(document.querySelectorAll('img'))
         .map(img => img.src);
-
-      return {
-        url: window.location.href,
-        textParagraphs: textNodes,
-        images: imageLinks
-      };
+      return { url: window.location.href, textParagraphs: textNodes, images: imageLinks };
     });
-
-    // Salvăm într-un fișier JSON
     fs.writeFileSync(outputPath, JSON.stringify(result, null, 2), 'utf8');
     console.log(`Salvat în ${outputPath}`);
-
     await browser.close();
   } catch (err) {
     console.error(err);
