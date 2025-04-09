@@ -10,7 +10,6 @@ const PORT = process.env.PORT || 3000;
 
 /**
  * GET /scrape?url=...
- * Rute pentru scraping simplu de pagini – extrage textul din <p> și sursele imaginilor.
  */
 app.get('/scrape', async (req, res) => {
   try {
@@ -18,30 +17,21 @@ app.get('/scrape', async (req, res) => {
     if (!url) {
       return res.status(400).json({ error: 'Parametrul ?url= lipsă' });
     }
-
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
-
     console.log(`[SCRAPE] Merg la URL: ${url}`);
     await page.goto(url, { waitUntil: 'networkidle2' });
-
-    // Extragem toate paragrafele și imaginile
     const result = await page.evaluate(() => {
       const textNodes = Array.from(document.querySelectorAll('p'))
         .map(el => el.innerText.trim())
         .filter(t => t.length > 0);
       const imageLinks = Array.from(document.querySelectorAll('img'))
         .map(img => img.src);
-      return {
-        url: window.location.href,
-        textParagraphs: textNodes,
-        images: imageLinks
-      };
+      return { url: window.location.href, textParagraphs: textNodes, images: imageLinks };
     });
-
     await browser.close();
     return res.json({ success: true, data: result });
   } catch (err) {
@@ -52,8 +42,7 @@ app.get('/scrape', async (req, res) => {
 
 /**
  * POST /login-facebook
- * Body JSON: { "email": "...", "password": "..." }
- * Rute pentru login pe Facebook și scraping (exemplu minimal – pot apărea modificări în DOM-ul Facebook)
+ * Body: { "email": "...", "password": "..." }
  */
 app.post('/login-facebook', async (req, res) => {
   try {
@@ -61,36 +50,25 @@ app.post('/login-facebook', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Te rog trimite email și password în body (JSON).' });
     }
-
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
-
     console.log('[FACEBOOK] Deschidem Facebook Login...');
     await page.goto('https://www.facebook.com/login', { waitUntil: 'networkidle2' });
-
-    // Introducem credențialele
     await page.type('input[name=email]', email, { delay: 50 });
     await page.type('input[name=pass]', password, { delay: 50 });
-
-    // Click pe butonul de login
     await page.click('button[name=login]');
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // Verificăm dacă login-ul a eșuat
     const pageContent = await page.content();
     if (pageContent.includes('login_error')) {
       console.log('[FACEBOOK] Login error detectat.');
       await browser.close();
       return res.status(401).json({ error: 'Login Facebook a eșuat. Verifică user/parola sau captcha.' });
     }
-
     console.log('[FACEBOOK] Login reușit (teoretic). Mergem la feed...');
     await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2' });
-
-    // Extragem primele 5 postări (text și eventual imagini)
     const posts = await page.evaluate(() => {
       const postElements = Array.from(document.querySelectorAll('div[data-pagelet^="FeedUnit_"]'));
       let results = [];
@@ -105,7 +83,6 @@ app.post('/login-facebook', async (req, res) => {
       }
       return results;
     });
-
     await browser.close();
     return res.json({ success: true, posts });
   } catch (err) {
@@ -116,8 +93,7 @@ app.post('/login-facebook', async (req, res) => {
 
 /**
  * POST /login-linkedin
- * Body JSON: { "email": "...", "password": "..." }
- * Rute pentru login pe LinkedIn și scraping (exemplu minimal – reține că DOM-ul LinkedIn se poate schimba frecvent)
+ * Body: { "email": "...", "password": "..." }
  */
 app.post('/login-linkedin', async (req, res) => {
   try {
@@ -125,28 +101,23 @@ app.post('/login-linkedin', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Trimite email și password în body (JSON).' });
     }
-
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
-
     console.log('[LINKEDIN] Deschidem LinkedIn login...');
     await page.goto('https://www.linkedin.com/login', { waitUntil: 'networkidle2' });
-
     await page.type('input[name=session_key]', email, { delay: 50 });
     await page.type('input[name=session_password]', password, { delay: 50 });
     await page.click('button[type=submit]');
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
     const currentUrl = page.url();
     if (currentUrl.includes('/checkpoint/challenge')) {
       console.log('[LINKEDIN] 2FA/Challenge detectat.');
       await browser.close();
       return res.status(401).json({ error: 'Login LinkedIn a cerut 2FA/Challenge.' });
     }
-
     await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'networkidle2' });
     const posts = await page.evaluate(() => {
       const postElements = Array.from(document.querySelectorAll('[data-id^="urn:li:activity"]'));
@@ -162,7 +133,6 @@ app.post('/login-linkedin', async (req, res) => {
       }
       return results;
     });
-
     await browser.close();
     return res.json({ success: true, posts });
   } catch (err) {
