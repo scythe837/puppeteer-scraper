@@ -2,6 +2,7 @@
 
 const express = require('express');
 const puppeteer = require('puppeteer');
+const { executablePath } = require('puppeteer');  // <-- Importăm executablePath
 
 // Avem nevoie de bodyParser (inclus în Express >4.16), pentru JSON:
 const app = express();
@@ -22,6 +23,7 @@ app.get('/scrape', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath(), // <-- AICI
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -70,6 +72,7 @@ app.post('/login-facebook', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath(), // <-- AICI
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -152,6 +155,7 @@ app.post('/login-linkedin', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath(),  // <-- AICI
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
