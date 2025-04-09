@@ -2,13 +2,18 @@
 
 const express = require('express');
 const puppeteer = require('puppeteer');
-const { executablePath } = require('puppeteer');  // <-- Importăm executablePath
+const { executablePath } = require('puppeteer');  // Importăm helperul
 
-// Avem nevoie de bodyParser (inclus în Express >4.16), pentru JSON:
+// Avem nevoie de bodyParser (inclus în Express >4.16) pentru JSON:
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
+
+// Definește calea către Chrome: încearcă să folosești valoarea returnată de executablePath(),
+// iar dacă aceasta e goală sau incorectă, folosește calea cunoscută din build.
+const chromePath = executablePath() || '/opt/render/.cache/puppeteer/chrome/linux-127.0.6533.88/chrome-linux64/chrome';
+console.log("Folosim calea Chrome:", chromePath);
 
 /**
  * 1) Scrape simplu, fără login
@@ -23,7 +28,7 @@ app.get('/scrape', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath(), // <-- AICI
+      executablePath: chromePath, // Folosim calea definită mai sus
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -72,7 +77,7 @@ app.post('/login-facebook', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath(), // <-- AICI
+      executablePath: chromePath, // Folosim calea explicită
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -86,12 +91,10 @@ app.post('/login-facebook', async (req, res) => {
 
     // Click pe butonul de Login
     await page.click('button[name=login]');
-    // Așteptăm să se facă redirect
+    // Așteptăm redirecționarea
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
 
-    // Aici ar trebui să fim logați. 
-    // Ideal: verificăm că nu a apărut un "Wrong password" etc.
-    // (un exemplu minimal)
+    // Verificăm dacă login-ul a eșuat
     const pageContent = await page.content();
     if (pageContent.includes('login_error')) {
       console.log('[FACEBOOK] Login error detectat');
@@ -105,12 +108,8 @@ app.post('/login-facebook', async (req, res) => {
     // Navigăm la feed-ul principal
     await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2' });
 
-    // Exemplu minimal: încercăm să luăm primele 5 postări (text + eventuală imagine)
-    // ATENȚIE: selecția .x1lliihq etc. depinde de DOM-ul actual FB. 
-    // Este DOAR un exemplu și probabil trebuie updatat când se schimbă DOM-ul FB.
+    // Exemplu minimal: preluăm primele 5 postări (text + eventuală imagine)
     const posts = await page.evaluate(() => {
-      // *** FOARTE SIMPLIST *** 
-      // Vom căuta div-urile care conțin textul postării și imaginea (dacă există).
       const postElements = Array.from(document.querySelectorAll('div[data-pagelet^="FeedUnit_"]'));
       let results = [];
       for (let i = 0; i < 5; i++) {
@@ -155,7 +154,7 @@ app.post('/login-linkedin', async (req, res) => {
 
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath(),  // <-- AICI
+      executablePath: chromePath,  // Folosim calea explicită
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -172,8 +171,7 @@ app.post('/login-linkedin', async (req, res) => {
     // Verificăm dacă login-ul a avut succes
     const currentUrl = page.url();
     if (currentUrl.includes('/checkpoint/challenge')) {
-      // e posibil să fim blocați de 2FA/captcha
-      console.log('[LINKEDIN] Challenge/2FA. ');
+      console.log('[LINKEDIN] Challenge/2FA detectat.');
       await browser.close();
       return res.status(401).json({ error: 'Login LinkedIn a cerut 2FA/Challenge.' });
     }
@@ -181,19 +179,16 @@ app.post('/login-linkedin', async (req, res) => {
     // Navigăm la feed
     await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'networkidle2' });
 
-    // Extract primele 5 postări (text, imagine)
-    // Notă: Și LinkedIn își schimbă DOM-ul frecvent
+    // Extragem primele 5 postări (text, imagine)
     const posts = await page.evaluate(() => {
       const postElements = Array.from(document.querySelectorAll('[data-id^="urn:li:activity"]'));
       let results = [];
       for (let i = 0; i < 5; i++) {
         const el = postElements[i];
         if (!el) break;
-        // O variantă foarte simplistă: căutăm <span> cu text
         const textEl = el.querySelector('.update-components-text');
         const text = textEl ? textEl.innerText : '';
 
-        // Imagine: LinkedIn stochează adesea imagini în <img> cu data-delayed-url sau direct src
         const imgEl = el.querySelector('img');
         const imgSrc = imgEl ? imgEl.src : null;
 
